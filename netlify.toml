@@ -1,17 +1,18 @@
 [build]
-  # Directory to publish (not needed for functions-only)
+  # Directory to publish
   publish = "public"
-  # Build command (optional - install dependencies)
+  # Build command
   command = "npm install"
   # Functions directory
   functions = "netlify/functions"
 
+# Function-specific configuration
 [functions]
-  # Increase timeout for database operations (max 26 seconds for free tier)
-  timeout = 26
-  # Use Node.js version
   node_bundler = "esbuild"
-  # Include external dependencies
+  included_files = ["src/**", "package.json"]
+
+# API function specific settings
+[functions.api]
   external_node_modules = ["sharp"]
 
 # Redirect all API requests to the serverless function
@@ -25,12 +26,6 @@
   to = "/.netlify/functions/api/:splat"
   status = 200
   force = true
-
-# Environment variables (set these in Netlify Dashboard)
-# [context.production.environment]
-#   NODE_ENV = "production"
-#   MONGODB_URI = "your-mongodb-uri"
-#   JWT_SECRET = "your-jwt-secret"
 
 # Headers for CORS
 [[headers]]
