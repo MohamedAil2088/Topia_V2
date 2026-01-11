@@ -1,6 +1,32 @@
 const Design = require('../models/Design');
 const path = require('path');
 const fs = require('fs');
+const cloudinary = require('cloudinary').v2;
+const stream = require('stream');
+
+// Configure Cloudinary
+cloudinary.config({
+    cloud_name: process.env.CLOUDINARY_CLOUD_NAME || 'dmujfkut1',
+    api_key: process.env.CLOUDINARY_API_KEY || '774152193843247',
+    api_secret: process.env.CLOUDINARY_API_SECRET || 'mEkpjoinKZoL1mjnlj_psacHECc',
+});
+
+// Helper function to upload buffer to Cloudinary
+const uploadToCloudinary = (buffer, folder = 'topia-designs') => {
+    return new Promise((resolve, reject) => {
+        const uploadStream = cloudinary.uploader.upload_stream(
+            { folder: folder, resource_type: 'auto' },
+            (error, result) => {
+                if (error) return reject(error);
+                resolve(result);
+            }
+        );
+        stream.Readable.from(buffer).pipe(uploadStream);
+    });
+};
+
+// Check if running in serverless environment
+const isServerless = process.env.NETLIFY || process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME;
 
 // @desc    Create new design (Admin)
 // @route   POST /api/designs
@@ -13,13 +39,24 @@ exports.createDesign = async (req, res) => {
             return res.status(400).json({ success: false, message: 'يرجى رفع صورة التصميم' });
         }
 
+        let imageUrl;
+
+        if (isServerless) {
+            // Upload to Cloudinary for serverless
+            const result = await uploadToCloudinary(req.file.buffer, 'topia-designs');
+            imageUrl = result.secure_url;
+        } else {
+            // Use local path for development
+            imageUrl = `/uploads/designs/${req.file.filename}`;
+        }
+
         const design = await Design.create({
             name,
             description,
             category,
             price: price || 0,
             tags: tags ? tags.split(',').map(tag => tag.trim()) : [],
-            image: `/uploads/designs/${req.file.filename}`,
+            image: imageUrl,
             uploadedBy: req.user._id
         });
 
@@ -30,6 +67,7 @@ exports.createDesign = async (req, res) => {
         });
 
     } catch (error) {
+        console.error('Create Design Error:', error);
         res.status(500).json({ success: false, message: error.message });
     }
 };
@@ -118,12 +156,18 @@ exports.updateDesign = async (req, res) => {
 
         // Update image if new file uploaded
         if (req.file) {
-            // Delete old image
-            const oldImagePath = path.join(__dirname, '../../', design.image);
-            if (fs.existsSync(oldImagePath)) {
-                fs.unlinkSync(oldImagePath);
+            if (isServerless) {
+                // Upload to Cloudinary
+                const result = await uploadToCloudinary(req.file.buffer, 'topia-designs');
+                design.image = result.secure_url;
+            } else {
+                // Delete old image from local storage
+                const oldImagePath = path.join(__dirname, '../../', design.image);
+                if (fs.existsSync(oldImagePath)) {
+                    fs.unlinkSync(oldImagePath);
+                }
+                design.image = `/uploads/designs/${req.file.filename}`;
             }
-            design.image = `/uploads/designs/${req.file.filename}`;
         }
 
         await design.save();
@@ -135,6 +179,7 @@ exports.updateDesign = async (req, res) => {
         });
 
     } catch (error) {
+        console.error('Update Design Error:', error);
         res.status(500).json({ success: false, message: error.message });
     }
 };
@@ -150,10 +195,12 @@ exports.deleteDesign = async (req, res) => {
             return res.status(404).json({ success: false, message: 'التصميم غير موجود' });
         }
 
-        // Delete image file
-        const imagePath = path.join(__dirname, '../../', design.image);
-        if (fs.existsSync(imagePath)) {
-            fs.unlinkSync(imagePath);
+        // Delete image file (only for local storage)
+        if (!isServerless && design.image && !design.image.startsWith('http')) {
+            const imagePath = path.join(__dirname, '../../', design.image);
+            if (fs.existsSync(imagePath)) {
+                fs.unlinkSync(imagePath);
+            }
         }
 
         await design.deleteOne();
