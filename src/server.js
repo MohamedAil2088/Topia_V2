@@ -50,7 +50,9 @@ const io = new Server(server, {
       "http://localhost:3000",
       "https://topia-mens.vercel.app",
       "https://topia-store-two.vercel.app",
-      /^https:\/\/topia-store-.*\.vercel\.app$/
+      "https://topia-front-v2.vercel.app",
+      /^https:\/\/topia-.*\.vercel\.app$/,
+      /^https:\/\/topia-front-v2-.*\.vercel\.app$/
     ],
     methods: ["GET", "POST"]
   }
@@ -74,7 +76,9 @@ app.use(cors({
     "http://localhost:3000",
     "https://topia-mens.vercel.app",
     "https://topia-store-two.vercel.app",
-    /^https:\/\/topia-store-.*\.vercel\.app$/
+    "https://topia-front-v2.vercel.app",
+    /^https:\/\/topia-.*\.vercel\.app$/,
+    /^https:\/\/topia-front-v2-.*\.vercel\.app$/
   ],
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
