@@ -66,8 +66,8 @@ const productSchema = new mongoose.Schema({
         default: 0
     },
     images: [{
-        type: String,
-        required: [true, 'الرجاء إضافة صورة واحدة على الأقل']
+        type: String
+        // Removed required validation - images can be added after product creation
     }],
     isFeatured: {
         type: Boolean,

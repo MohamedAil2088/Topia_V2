@@ -13,9 +13,6 @@ const app = express();
 // تحميل متغيرات البيئة
 dotenv.config();
 
-// Force Vercel Redeploy - Timestamp: %TIMESTAMP%
-console.log('Server starting... Vercel Fix Deployment');
-
 const connectDB = require('./config/database');
 
 // Sentry Init

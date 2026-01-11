@@ -2,49 +2,52 @@ const express = require('express');
 const multer = require('multer');
 const cloudinary = require('cloudinary').v2;
 const stream = require('stream');
-const dotenv = require('dotenv');
-
-dotenv.config();
 
 const router = express.Router();
 
-// 🔒 HARDCODED CONFIGURATION (Temporary Fix for Vercel)
-// We are putting credentials directly here because Vercel env vars are failing
-const CLOUDINARY_CONFIG = {
-    cloud_name: 'dmujfkut1',
-    api_key: '774152193843247',
-    api_secret: 'mEkpjoinKZoL1mjnlj_psacHECc'
-};
+// Configure Cloudinary from Environment Variables
+cloudinary.config({
+    cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+    api_key: process.env.CLOUDINARY_API_KEY,
+    api_secret: process.env.CLOUDINARY_API_SECRET,
+});
 
-cloudinary.config(CLOUDINARY_CONFIG);
-
-// Use Memory Storage for Vercel
+// Use Memory Storage for Serverless (Vercel/Netlify)
 const storage = multer.memoryStorage();
 const upload = multer({
     storage: storage,
-    limits: { fileSize: 10 * 1024 * 1024 }
+    limits: { fileSize: 10 * 1024 * 1024 } // 10MB limit
 });
 
-// Debug Route
+// Debug/Test Route
 router.get('/test', (req, res) => {
     res.json({
         status: 'Online',
-        config_source: 'Hardcoded',
-        cloud_name: CLOUDINARY_CONFIG.cloud_name,
-        can_upload: true
+        cloudinary_configured: !!(process.env.CLOUDINARY_CLOUD_NAME && process.env.CLOUDINARY_API_KEY),
+        cloud_name: process.env.CLOUDINARY_CLOUD_NAME || 'MISSING',
+        env: process.env.NODE_ENV || 'development'
     });
 });
 
 // Upload Route
 router.post('/', upload.single('image'), async (req, res) => {
     try {
+        // Check if Cloudinary is configured
+        if (!process.env.CLOUDINARY_CLOUD_NAME || !process.env.CLOUDINARY_API_KEY || !process.env.CLOUDINARY_API_SECRET) {
+            console.error('[Upload] Cloudinary credentials missing!');
+            return res.status(500).json({
+                message: 'Server configuration error: Cloudinary not configured',
+                error: 'Missing CLOUDINARY environment variables'
+            });
+        }
+
         if (!req.file) {
             return res.status(400).json({ message: 'No file uploaded' });
         }
 
-        console.log(`[Upload] Starting: ${req.file.originalname}`);
+        console.log(`[Upload] Processing: ${req.file.originalname}`);
 
-        // Upload Stream
+        // Upload to Cloudinary using stream
         const uploadFromBuffer = (buffer) => {
             return new Promise((resolve, reject) => {
                 const uploadStream = cloudinary.uploader.upload_stream(
@@ -67,14 +70,14 @@ router.post('/', upload.single('image'), async (req, res) => {
 
         res.json({
             success: true,
-            message: 'Uploaded!',
+            message: 'Image uploaded successfully',
             url: result.secure_url,
             imagePath: result.secure_url,
             filename: result.public_id
         });
 
     } catch (error) {
-        console.error('[Upload Failed]:', error);
+        console.error('[Upload Error]:', error);
         res.status(500).json({
             message: 'Upload failed',
             error: error.message
