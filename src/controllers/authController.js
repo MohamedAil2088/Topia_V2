@@ -30,35 +30,67 @@ exports.register = async (req, res) => {
         });
 
         if (user) {
-            // Generate Verification Code (6 digits)
-            const verificationCode = Math.floor(100000 + Math.random() * 900000).toString();
-
-            // Save code to user (hashed)
-            user.resetPasswordToken = crypto.createHash('sha256').update(verificationCode).digest('hex');
-            user.resetPasswordExpire = Date.now() + 24 * 60 * 60 * 1000; // 24 hours for initial verification
-            user.isVerified = false; // Ensure not verified yet
-            await user.save({ validateBeforeSave: false });
-
-            // Send Verification Email
+            // Send Welcome Email (no verification needed)
             try {
                 await sendEmail({
                     email: user.email,
-                    subject: 'Verify Your Topia Account 🔒',
+                    subject: 'Welcome to Topia! 🎉',
                     message: `
-                        <div style="font-family: Arial, sans-serif; padding: 20px; color: #333; max-width: 600px; margin: 0 auto; border: 1px solid #e0e0e0; border-radius: 8px;">
-                            <h2 style="color: #4F46E5; text-align: center;">Welcome to Topia!</h2>
-                            <p style="font-size: 16px;">Please use the following code to verify your account:</p>
-                            <div style="background-color: #f3f4f6; padding: 15px; text-align: center; border-radius: 8px; margin: 20px 0;">
-                                <h1 style="color: #111827; letter-spacing: 5px; margin: 0;">${verificationCode}</h1>
+                        <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 600px; margin: 0 auto; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 16px; overflow: hidden;">
+                            <!-- Header -->
+                            <div style="padding: 40px 30px; text-align: center;">
+                                <h1 style="color: #ffffff; font-size: 32px; margin: 0; font-weight: 700;">TOPIA</h1>
+                                <p style="color: rgba(255,255,255,0.9); font-size: 14px; margin-top: 8px; letter-spacing: 2px;">PREMIUM MENSWEAR</p>
                             </div>
-                            <p style="color: #6b7280; font-size: 14px; text-align: center;">This code will expire in 24 hours.</p>
-                            <p>Best Regards,<br/>Topia Team</p>
+                            
+                            <!-- Content -->
+                            <div style="background: #ffffff; padding: 40px 30px; border-radius: 0 0 16px 16px;">
+                                <h2 style="color: #1a1a2e; font-size: 24px; margin: 0 0 20px 0; text-align: center;">Welcome to the Family, ${user.name}! 🎊</h2>
+                                
+                                <p style="color: #4a5568; font-size: 16px; line-height: 1.8; margin-bottom: 20px;">
+                                    We're thrilled to have you join the Topia community. You've just taken the first step towards elevating your style with premium menswear designed for the modern gentleman.
+                                </p>
+                                
+                                <div style="background: linear-gradient(135deg, #f6f8fb 0%, #e9ecef 100%); padding: 25px; border-radius: 12px; margin: 25px 0;">
+                                    <h3 style="color: #1a1a2e; font-size: 18px; margin: 0 0 15px 0;">🎁 What's Waiting for You:</h3>
+                                    <ul style="color: #4a5568; font-size: 14px; line-height: 2; margin: 0; padding-left: 20px;">
+                                        <li><strong>Exclusive Collections</strong> - Hand-picked premium fashion</li>
+                                        <li><strong>Custom Designs</strong> - Create your unique style</li>
+                                        <li><strong>Elite Rewards</strong> - Earn points with every purchase</li>
+                                        <li><strong>Free Shipping</strong> - On orders over 1000 EGP</li>
+                                    </ul>
+                                </div>
+                                
+                                <div style="text-align: center; margin-top: 30px;">
+                                    <a href="https://topia-front-v2.vercel.app/shop" style="display: inline-block; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: #ffffff; padding: 16px 40px; border-radius: 50px; text-decoration: none; font-weight: 600; font-size: 16px; box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);">
+                                        Start Shopping →
+                                    </a>
+                                </div>
+                                
+                                <div style="border-top: 1px solid #e2e8f0; margin-top: 35px; padding-top: 25px; text-align: center;">
+                                    <p style="color: #718096; font-size: 14px; margin: 0;">
+                                        Need help? Contact us at <a href="mailto:support@topia.com" style="color: #667eea; text-decoration: none;">support@topia.com</a>
+                                    </p>
+                                    <div style="margin-top: 20px;">
+                                        <a href="#" style="color: #667eea; text-decoration: none; margin: 0 10px;">Instagram</a>
+                                        <a href="#" style="color: #667eea; text-decoration: none; margin: 0 10px;">Facebook</a>
+                                        <a href="#" style="color: #667eea; text-decoration: none; margin: 0 10px;">Twitter</a>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- Footer -->
+                            <div style="padding: 20px; text-align: center;">
+                                <p style="color: rgba(255,255,255,0.7); font-size: 12px; margin: 0;">
+                                    © 2024 Topia. All rights reserved.
+                                </p>
+                            </div>
                         </div>
                     `
                 });
             } catch (err) {
-                console.error('Verification Email Error:', err);
-                // We don't fail the registration if email fails, but user might need to resend
+                console.error('Welcome Email Error:', err);
+                // Don't fail registration if email fails
             }
 
             res.status(201).json({
@@ -71,7 +103,7 @@ exports.register = async (req, res) => {
                 points: user.points || 0,
                 tier: user.tier || 'Bronze',
                 token: generateToken(user._id),
-                isVerified: false // Flag for frontend to redirect to verification
+                isVerified: true // No verification needed
             });
         } else {
             res.status(400).json({ success: false, message: 'بيانات المستخدم غير صحيحة' });
