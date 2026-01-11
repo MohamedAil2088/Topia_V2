@@ -8,68 +8,86 @@ dotenv.config();
 
 const router = express.Router();
 
-// Configuration
+// 1. تكوين Cloudinary
 cloudinary.config({
     cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
     api_key: process.env.CLOUDINARY_API_KEY,
     api_secret: process.env.CLOUDINARY_API_SECRET,
 });
 
-// Use Memory Storage for Vercel (Critical for Serverless)
-// Vercel functions cannot write to disk typically
+// 2. إعداد Multer (Memory Storage)
 const storage = multer.memoryStorage();
 const upload = multer({
     storage: storage,
-    limits: { fileSize: 10 * 1024 * 1024 } // Increased limit to 10MB
+    limits: { fileSize: 10 * 1024 * 1024 }
 });
 
-// Helper to upload buffer to Cloudinary
-const uploadFromBuffer = (buffer) => {
-    return new Promise((resolve, reject) => {
-        const uploadStream = cloudinary.uploader.upload_stream(
-            {
-                folder: 'topia-store',
-                resource_type: 'auto', // Auto detect type (image/video/etc)
-            },
-            (error, result) => {
-                if (error) return reject(error);
-                resolve(result);
-            }
-        );
-        stream.Readable.from(buffer).pipe(uploadStream);
+// 3. مسار اختبار (عشان نتأكد إن الإعدادات واصلة)
+router.get('/test', (req, res) => {
+    res.json({
+        message: 'Upload route is working',
+        cloudinary_configured: !!process.env.CLOUDINARY_CLOUD_NAME,
+        cloud_name: process.env.CLOUDINARY_CLOUD_NAME ? process.env.CLOUDINARY_CLOUD_NAME : 'MISSING',
+        env: process.env.NODE_ENV
     });
-};
+});
 
-// POST Upload Route
-router.post('/', upload.single('image'), async (req, res) => {
+// 4. مسار الرفع
+router.post('/', (req, res, next) => {
+    // Wrap in a standard handler to catch multer errors
+    upload.single('image')(req, res, (err) => {
+        if (err) {
+            console.error('Multer Error:', err);
+            return res.status(400).json({ message: 'File upload error', error: err.message });
+        }
+        next();
+    });
+}, async (req, res) => {
     try {
+        // Check Config First
+        if (!process.env.CLOUDINARY_CLOUD_NAME || !process.env.CLOUDINARY_API_KEY || !process.env.CLOUDINARY_API_SECRET) {
+            throw new Error('Cloudinary configuration is missing on server');
+        }
+
         if (!req.file) {
             return res.status(400).json({ message: 'No file uploaded' });
         }
 
-        console.log(`[Upload] Starting upload for file: ${req.file.originalname}`);
+        console.log(`[Upload] Processing file: ${req.file.originalname}`);
 
-        // Direct upload from memory to Cloudinary
-        const result = await uploadFromBuffer(req.file.buffer);
+        // Upload Stream
+        const uploadStream = () => {
+            return new Promise((resolve, reject) => {
+                const streamLoad = cloudinary.uploader.upload_stream(
+                    { folder: 'topia-store' },
+                    (error, result) => {
+                        if (error) return reject(error);
+                        resolve(result);
+                    }
+                );
+                stream.Readable.from(req.file.buffer).pipe(streamLoad);
+            });
+        };
+
+        const result = await uploadStream();
 
         console.log('[Upload] Success:', result.secure_url);
 
         res.json({
-            message: 'Image uploaded successfully',
             success: true,
+            message: 'Uploaded!',
             url: result.secure_url,
             imagePath: result.secure_url,
-            filename: result.public_id,
-            format: result.format,
-            width: result.width,
-            height: result.height
+            filename: result.public_id
         });
 
     } catch (error) {
-        console.error('[Upload Error]:', error);
+        console.error('[Upload Fatal Error]:', error);
+        // Return the ACTUAL error message to the client
         res.status(500).json({
-            message: 'Upload failed',
-            error: error.message || 'Unknown error'
+            message: 'Upload failed internal',
+            error: error.message,
+            details: error // Show full details
         });
     }
 });
