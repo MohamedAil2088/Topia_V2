@@ -8,27 +8,28 @@ dotenv.config();
 
 const router = express.Router();
 
-// 1. تكوين Cloudinary
+// Configuration
 cloudinary.config({
     cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
     api_key: process.env.CLOUDINARY_API_KEY,
     api_secret: process.env.CLOUDINARY_API_SECRET,
 });
 
-// 2. إعداد Multer (استخدام الذاكرة بدلاً من القرص)
+// Use Memory Storage for Vercel (Critical for Serverless)
+// Vercel functions cannot write to disk typically
 const storage = multer.memoryStorage();
 const upload = multer({
     storage: storage,
-    limits: { fileSize: 5 * 1024 * 1024 } // حد أقصى 5 ميجا للصورة
+    limits: { fileSize: 10 * 1024 * 1024 } // Increased limit to 10MB
 });
 
-// دالة مساعدة لرفع الـ Buffer إلى Cloudinary
+// Helper to upload buffer to Cloudinary
 const uploadFromBuffer = (buffer) => {
     return new Promise((resolve, reject) => {
         const uploadStream = cloudinary.uploader.upload_stream(
             {
                 folder: 'topia-store',
-                allowed_formats: ['jpg', 'png', 'jpeg', 'webp'],
+                resource_type: 'auto', // Auto detect type (image/video/etc)
             },
             (error, result) => {
                 if (error) return reject(error);
@@ -39,32 +40,37 @@ const uploadFromBuffer = (buffer) => {
     });
 };
 
-// 3. مسار الرفع
+// POST Upload Route
 router.post('/', upload.single('image'), async (req, res) => {
     try {
         if (!req.file) {
             return res.status(400).json({ message: 'No file uploaded' });
         }
 
-        console.log('Start uploading to Cloudinary...');
+        console.log(`[Upload] Starting upload for file: ${req.file.originalname}`);
 
-        // رفع الملف من الذاكرة لـ Cloudinary
+        // Direct upload from memory to Cloudinary
         const result = await uploadFromBuffer(req.file.buffer);
 
-        console.log('Upload success:', result.secure_url);
+        console.log('[Upload] Success:', result.secure_url);
 
-        // الرد بنفس الصيغة اللي ال frontend متعود عليها
         res.json({
             message: 'Image uploaded successfully',
             success: true,
-            url: result.secure_url,     // الرابط الآمن
-            imagePath: result.secure_url, // للتوافق
-            filename: result.public_id
+            url: result.secure_url,
+            imagePath: result.secure_url,
+            filename: result.public_id,
+            format: result.format,
+            width: result.width,
+            height: result.height
         });
 
     } catch (error) {
-        console.error('Upload Error:', error);
-        res.status(500).json({ message: 'Upload failed', error: error.message });
+        console.error('[Upload Error]:', error);
+        res.status(500).json({
+            message: 'Upload failed',
+            error: error.message || 'Unknown error'
+        });
     }
 });
 
