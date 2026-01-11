@@ -8,68 +8,60 @@ dotenv.config();
 
 const router = express.Router();
 
-// 1. تكوين Cloudinary
-cloudinary.config({
-    cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
-    api_key: process.env.CLOUDINARY_API_KEY,
-    api_secret: process.env.CLOUDINARY_API_SECRET,
-});
+// 🔒 HARDCODED CONFIGURATION (Temporary Fix for Vercel)
+// We are putting credentials directly here because Vercel env vars are failing
+const CLOUDINARY_CONFIG = {
+    cloud_name: 'dmujfkut1',
+    api_key: '774152193843247',
+    api_secret: 'mEkpjoinKZoL1mjnlj_psacHECc'
+};
 
-// 2. إعداد Multer (Memory Storage)
+cloudinary.config(CLOUDINARY_CONFIG);
+
+// Use Memory Storage for Vercel
 const storage = multer.memoryStorage();
 const upload = multer({
     storage: storage,
     limits: { fileSize: 10 * 1024 * 1024 }
 });
 
-// 3. مسار اختبار (عشان نتأكد إن الإعدادات واصلة)
+// Debug Route
 router.get('/test', (req, res) => {
     res.json({
-        message: 'Upload route is working',
-        cloudinary_configured: !!process.env.CLOUDINARY_CLOUD_NAME,
-        cloud_name: process.env.CLOUDINARY_CLOUD_NAME ? process.env.CLOUDINARY_CLOUD_NAME : 'MISSING',
-        env: process.env.NODE_ENV
+        status: 'Online',
+        config_source: 'Hardcoded',
+        cloud_name: CLOUDINARY_CONFIG.cloud_name,
+        can_upload: true
     });
 });
 
-// 4. مسار الرفع
-router.post('/', (req, res, next) => {
-    // Wrap in a standard handler to catch multer errors
-    upload.single('image')(req, res, (err) => {
-        if (err) {
-            console.error('Multer Error:', err);
-            return res.status(400).json({ message: 'File upload error', error: err.message });
-        }
-        next();
-    });
-}, async (req, res) => {
+// Upload Route
+router.post('/', upload.single('image'), async (req, res) => {
     try {
-        // Check Config First
-        if (!process.env.CLOUDINARY_CLOUD_NAME || !process.env.CLOUDINARY_API_KEY || !process.env.CLOUDINARY_API_SECRET) {
-            throw new Error('Cloudinary configuration is missing on server');
-        }
-
         if (!req.file) {
             return res.status(400).json({ message: 'No file uploaded' });
         }
 
-        console.log(`[Upload] Processing file: ${req.file.originalname}`);
+        console.log(`[Upload] Starting: ${req.file.originalname}`);
 
         // Upload Stream
-        const uploadStream = () => {
+        const uploadFromBuffer = (buffer) => {
             return new Promise((resolve, reject) => {
-                const streamLoad = cloudinary.uploader.upload_stream(
-                    { folder: 'topia-store' },
+                const uploadStream = cloudinary.uploader.upload_stream(
+                    {
+                        folder: 'topia-store',
+                        resource_type: 'auto'
+                    },
                     (error, result) => {
                         if (error) return reject(error);
                         resolve(result);
                     }
                 );
-                stream.Readable.from(req.file.buffer).pipe(streamLoad);
+                stream.Readable.from(buffer).pipe(uploadStream);
             });
         };
 
-        const result = await uploadStream();
+        const result = await uploadFromBuffer(req.file.buffer);
 
         console.log('[Upload] Success:', result.secure_url);
 
@@ -82,12 +74,10 @@ router.post('/', (req, res, next) => {
         });
 
     } catch (error) {
-        console.error('[Upload Fatal Error]:', error);
-        // Return the ACTUAL error message to the client
+        console.error('[Upload Failed]:', error);
         res.status(500).json({
-            message: 'Upload failed internal',
-            error: error.message,
-            details: error // Show full details
+            message: 'Upload failed',
+            error: error.message
         });
     }
 });
