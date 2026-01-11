@@ -27,6 +27,11 @@
   status = 200
   force = true
 
+# Environment variables
+[context.production.environment]
+  NETLIFY = "true"
+  NODE_ENV = "production"
+
 # Headers for CORS
 [[headers]]
   for = "/*"

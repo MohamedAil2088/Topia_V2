@@ -1,37 +1,46 @@
 const multer = require('multer');
 const path = require('path');
-const fs = require('fs');
 
-// Create uploads directory if it doesn't exist
-// Create uploads directory if it doesn't exist
-let uploadsDir = path.join(__dirname, '../../uploads/designs');
+// Check if running in serverless environment
+const isServerless = process.env.NETLIFY || process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME;
 
-try {
-    if (!fs.existsSync(uploadsDir)) {
-        fs.mkdirSync(uploadsDir, { recursive: true });
-    }
-} catch (error) {
-    console.log("⚠️ Upload directory creation failed (likely read-only fs), falling back to /tmp");
-    uploadsDir = '/tmp/uploads/designs';
+let storage;
+
+if (isServerless) {
+    // Use memory storage for serverless (Vercel/Netlify)
+    storage = multer.memoryStorage();
+    console.log("📦 Using memory storage for designs (Serverless mode)");
+} else {
+    // Use disk storage for local development
+    const fs = require('fs');
+    let uploadsDir = path.join(__dirname, '../../uploads/designs');
+
     try {
         if (!fs.existsSync(uploadsDir)) {
             fs.mkdirSync(uploadsDir, { recursive: true });
         }
-    } catch (e) {
-        console.error("❌ Could not create /tmp upload dir:", e);
+    } catch (error) {
+        console.log("⚠️ Upload directory creation failed, falling back to /tmp");
+        uploadsDir = '/tmp/uploads/designs';
+        try {
+            if (!fs.existsSync(uploadsDir)) {
+                fs.mkdirSync(uploadsDir, { recursive: true });
+            }
+        } catch (e) {
+            console.error("❌ Could not create /tmp upload dir:", e);
+        }
     }
-}
 
-// Storage configuration
-const storage = multer.diskStorage({
-    destination: function (req, file, cb) {
-        cb(null, uploadsDir);
-    },
-    filename: function (req, file, cb) {
-        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-        cb(null, 'design-' + uniqueSuffix + path.extname(file.originalname));
-    }
-});
+    storage = multer.diskStorage({
+        destination: function (req, file, cb) {
+            cb(null, uploadsDir);
+        },
+        filename: function (req, file, cb) {
+            const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+            cb(null, 'design-' + uniqueSuffix + path.extname(file.originalname));
+        }
+    });
+}
 
 // File filter
 const fileFilter = (req, file, cb) => {

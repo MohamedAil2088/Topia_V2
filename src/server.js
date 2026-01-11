@@ -150,9 +150,12 @@ app.use('/api/designs', require('./routes/designRoutes')); // Design Templates R
 app.use('/api/settings', require('./routes/settingRoutes')); // Store Settings Route
 
 
-// جعل مجلد uploads عاماً (Static)
-const uploadsPath = path.join(__dirname, '../uploads');
-app.use('/uploads', express.static(uploadsPath));
+// جعل مجلد uploads عاماً (Static) - فقط في البيئة المحلية
+const isServerless = process.env.NETLIFY || process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME;
+if (!isServerless) {
+  const uploadsPath = path.join(__dirname, '../uploads');
+  app.use('/uploads', express.static(uploadsPath));
+}
 
 // Route أساسي للاختبار
 app.get('/', (req, res) => {
