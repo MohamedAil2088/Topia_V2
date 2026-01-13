@@ -66,6 +66,15 @@ app.use((req, res, next) => {
 
 app.get('/test-early', (req, res) => res.send('Early test works'));
 
+// Health check endpoint for Vercel Cron (Keep Alive)
+app.get('/api/health', (req, res) => {
+  res.status(200).json({
+    status: 'ok',
+    timestamp: new Date().toISOString(),
+    uptime: process.uptime()
+  });
+});
+
 // =======================
 // 🛡️ CORS - MUST BE FIRST!
 // =======================
